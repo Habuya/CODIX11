@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumCore 2.0 | Cyber-Glass</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- DEBUG: Error Logger -->
+    <script>
+        window.onerror = function (msg, url, line) {
+            const errorBox = document.createElement('div');
+            Object.assign(errorBox.style, {
+                position: 'fixed', top: '0', left: '0', width: '100%',
+                background: 'rgba(255, 0, 0, 0.9)', color: 'white',
+                padding: '10px', zIndex: '9999', fontFamily: 'monospace', fontSize: '12px'
+            });
+            errorBox.innerHTML = `<strong>ERROR:</strong> ${msg}<br><small>${url}:${line}</small>`;
+            document.body.appendChild(errorBox);
+            const loader = document.getElementById('loader-screen');
+            if (loader) loader.style.display = 'none';
+        };
+
+        // GLOBAL START APP HANDLER (Fallback)
+        window.startApp = async function () {
+            try {
+                if (!window.audioCtx) window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (window.audioCtx.state === 'suspended') await window.audioCtx.resume();
+            } catch (e) { console.error("Audio init failed:", e); }
+
+            const intro = document.getElementById('intro');
+            if (intro) {
+                intro.style.transition = 'opacity 1s';
+                intro.style.opacity = '0';
+                setTimeout(() => intro.remove(), 1000);
+            }
+
+            if (typeof startBootSequence === 'function') {
+                startBootSequence();
+            } else {
+                console.warn("startBootSequence not found in script.js");
+                document.body.classList.add('booting');
+            }
+        };
+    </script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="flex items-center justify-center min-h-screen">
+    <canvas id="matrix-canvas"
+        class="fixed inset-0 pointer-events-none opacity-0 transition-opacity duration-1000 z-0"></canvas>
+    <canvas id="neural-canvas" class="fixed inset-0 w-full h-full -z-10"></canvas>
+    <div id="stars"></div>
+    <div class="aurora-bg"></div>
+
+    <!-- NEURAL-SYNC LOADER -->
+    <div id="loader-screen"
+        class="fixed inset-0 z-[300] flex flex-col items-center justify-center transition-opacity duration-1000">
+        <div class="loader-geometry">
+            <div class="cube"></div>
+            <div class="cube-inner"></div>
+            <div class="orbit"></div>
+        </div>
+        <div class="loader-text-area mt-12 text-center">
+            <div id="load-status" class="text-cyan-400 font-mono text-[10px] tracking-[0.5em] uppercase">Initialisiere
+                Neural_Link</div>
+            <div class="w-48 h-[1px] bg-white/10 mt-4 relative overflow-hidden">
+                <div id="load-progress"
+                    class="absolute top-0 left-0 h-full bg-cyan-400 shadow-[0_0_10px_#00f2ff] transition-all duration-500"
+                    style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTRO SCREEN -->
+    <div id="intro"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black transition-all duration-1000">
+        <h1 class="text-4xl md:text-6xl font-bold mb-8 neon-text tracking-widest uppercase">QuantumCore 2.0</h1>
+        <p class="text-white/30 mb-8 text-sm">Cyber-Glass Interface</p>
+        <button onclick="startApp()"
+            class="glass-modern px-10 py-4 text-xl hover:bg-cyan-500/20 transition-all duration-300 tracking-widest rounded-2xl">ENTER
+            QUANTUM</button>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen"
+        class="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-3xl hidden transition-all duration-500">
+        <div class="glass-modern p-8 rounded-3xl border-red-500/30 flex flex-col items-center max-w-sm w-full">
+            <span class="text-[10px] text-red-500 mb-4 tracking-[0.3em] font-bold">RESTRICTED ACCESS</span>
+            <input type="password" id="access-key" placeholder="ZUGANGSCODE"
+                class="bg-black/50 border border-red-500/50 p-4 w-full outline-none text-center text-red-500 tracking-[1em] focus:border-red-400 rounded-xl">
+            <button onclick="checkAccess()"
+                class="mt-4 text-[10px] text-white/50 hover:text-red-500 transition-colors uppercase tracking-widest">
+                Handshake starten
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN LAYOUT WRAPPER -->
+    <main id="main-layout-wrapper"
+        class="w-full h-screen flex p-4 gap-4 opacity-0 transition-opacity duration-1000 max-w-[1600px] mx-auto overflow-hidden">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar"
+            class="w-80 glass-modern rounded-3xl flex flex-col transition-all duration-500 overflow-hidden shrink-0">
+            <div class="p-6 border-b border-white/10 bg-white/5">
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="text-[10px] font-bold tracking-[0.3em] text-cyan-400 uppercase">Control_Dashboard</h2>
+                    <span class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_cyan]"></span>
+                </div>
+                <p class="text-[8px] opacity-30 uppercase tracking-widest">Auth_Level: Root // Session_01</p>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar">
+                <!-- Matrix Section -->
+                <section>
+                    <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-1">
+                        <h3 class="text-[10px] font-bold text-white/40 uppercase tracking-widest">Context_Matrix</h3>
+                        <span id="matrix-count" class="text-[9px] text-cyan-500/50">0/11</span>
+                    </div>
+                    <div id="sidebar-matrix-list" class="space-y-3">
+                        <!-- Slots will be injected here -->
+                    </div>
+                </section>
+
+                <!-- Quick Actions -->
+                <section>
+                    <h3
+                        class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 border-b border-white/5 pb-1">
+                        Quick_Actions</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="toggleCalendar(true)" class="sidebar-btn group">
+                            <span class="opacity-40 group-hover:opacity-100 transition-opacity">📅</span>
+                            Calendar
+                        </button>
+                        <button onclick="showArchiveStatus()" class="sidebar-btn group">
+                            <span class="opacity-40 group-hover:opacity-100 transition-opacity">📦</span>
+                            Archive
+                        </button>
+                        <button onclick="document.documentElement.requestFullscreen()" class="sidebar-btn group">
+                            <span class="opacity-40 group-hover:opacity-100 transition-opacity">🖥️</span>
+                            Full Imm.
+                        </button>
+                        <button onclick="toggleVoice()" id="voice-toggle-btn" class="sidebar-btn group">
+                            <span class="opacity-40 group-hover:opacity-100 transition-opacity">🔊</span>
+                            Voice ON
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Backups -->
+                <section>
+                    <h3
+                        class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 border-b border-white/5 pb-1">
+                        Neural_Backups</h3>
+                    <div id="sidebar-backup-list" class="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Backups will be injected here -->
+                    </div>
+                </section>
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-black/20 text-center">
+                <button onclick="downloadChat()"
+                    class="text-[9px] text-cyan-500 hover:text-white transition-all uppercase tracking-widest">
+                    [System_Log_Export.txt]
+                </button>
+            </div>
+        </aside>
+
+        <!-- TERMINAL -->
+        <section id="terminal"
+            class="flex-1 glass-modern rounded-3xl flex flex-col overflow-hidden relative border-l border-white/5">
+            <!-- Loading Bar -->
+            <div id="loading-bar-container"
+                class="absolute top-0 left-0 w-full h-1 bg-transparent overflow-hidden z-10">
+                <div id="loading-bar"
+                    class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 w-0 transition-all duration-300"></div>
+            </div>
+
+            <!-- Header -->
+            <header class="p-6 border-b border-white/10 flex justify-between items-center bg-white/5 backdrop-blur-md">
+                <div class="flex items-center gap-4">
+                    <button id="sidebar-toggle" onclick="toggleSidebar()"
+                        class="hover:text-cyan-400 transition-colors p-1" title="Toggle Dashboard">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16m-7 6h7"></path>
+                        </svg>
+                    </button>
+                    <div
+                        class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 animate-pulse hidden sm:block">
+                    </div>
+                    <div>
+                        <h1 class="text-base sm:text-lg font-bold tracking-widest neon-text">QUANTUM-CORE 2.0</h1>
+                        <p id="status-text" class="text-[10px] opacity-50 uppercase">Ready for Infiltration</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="pin-matrix"
+                        class="group relative hidden lg:flex gap-1.5 items-center px-3 py-2 bg-white/5 border border-white/10 rounded-xl">
+                        <span class="text-[9px] text-white/40 font-bold mr-2 tracking-widest uppercase">Matrix</span>
+                        <div class="flex gap-1" id="pin-slots">
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-1"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-2"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-3"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-4"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-5"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-6"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-7"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-8"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-9"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-10"></div>
+                            <div class="w-2 h-2 rounded-full bg-white/10 border border-white/5 transition-all duration-500"
+                                id="pin-11"></div>
+                        </div>
+
+                        <div id="matrix-tooltip"
+                            class="absolute top-full mt-4 right-0 w-64 glass-modern p-4 rounded-xl opacity-0 pointer-events-none transition-all duration-300 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 z-[60]">
+                            <h4
+                                class="text-[10px] text-cyan-400 font-bold uppercase mb-2 border-b border-white/10 pb-1">
+                                Matrix Content</h4>
+                            <div id="tooltip-text" class="text-[11px] text-white/70 italic leading-relaxed">Fahre über
+                                einen Slot...</div>
+                        </div>
+                    </div>
+
+                    <div id="system-auditor"
+                        class="flex items-center gap-4 px-3 sm:px-4 py-2 bg-black/20 border border-white/5 rounded-xl ml-auto">
+                        <div class="flex flex-col hidden sm:flex">
+                            <span class="text-[8px] text-white/40 uppercase tracking-[0.2em]">Core_Pulse</span>
+                            <canvas id="pulse-graph" width="60" height="20" class="opacity-80"></canvas>
+                        </div>
+                        <div class="text-right">
+                            <div id="fps-counter" class="text-[10px] font-mono text-cyan-400">60 FPS</div>
+                            <div id="latency-counter" class="text-[8px] font-mono text-white/30">0ms</div>
+                        </div>
+                    </div>
+
+                    <span id="system-time" class="text-[9px] opacity-40 hidden xl:block">--:--:--</span>
+                    <button id="stop-btn" onclick="abortGeneration()"
+                        class="hidden bg-red-500/20 hover:bg-red-500/40 border border-red-500/50 px-4 py-2 rounded-full text-[10px] transition-all uppercase tracking-wider">
+                        ⬛ STOP
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat History -->
+            <div id="chat-history" class="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 scroll-smooth flex flex-col">
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-6 bg-white/5 border-t border-white/10">
+                <div class="flex gap-4 items-center">
+                    <div class="flex-1 relative">
+                        <div class="input-wrapper">
+                            <div id="ghost-layer"></div>
+                            <input type="text" id="user-input" maxlength="500"
+                                placeholder="Befehl oder Datei hierher ziehen..."
+                                class="w-full bg-white/5 border border-white/10 p-4 pr-24 rounded-2xl outline-none focus:border-cyan-500/50 transition-all text-sm">
+                            <span id="ghost-suggestion"></span>
+                        </div>
+                        <button id="mic-btn" onclick="toggleListen()"
+                            class="absolute right-14 top-1/2 -translate-y-1/2 text-cyan-500 hover:text-white transition-colors opacity-50 hover:opacity-100"
+                            title="Spracheingabe">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                            </svg>
+                        </button>
+                        <span id="char-counter"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] opacity-30">0</span>
+                    </div>
+                    <button onclick="sendMessage()"
+                        class="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 p-4 rounded-2xl shadow-lg shadow-cyan-500/20 transition-all flex-shrink-0">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- CALENDAR OVERLAY -->
+    <div id="calendar-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xl hidden transition-all duration-700 opacity-0">
+        <div
+            class="glass-modern p-8 rounded-3xl w-full max-w-4xl max-h-[80vh] overflow-y-auto border-cyan-500/20 shadow-[0_0_50px_rgba(0,242,255,0.1)]">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold tracking-[0.3em] neon-text">TERMINAL_SCHEDULE</h2>
+                <button onclick="toggleCalendar(false)"
+                    class="text-white/50 hover:text-red-500 transition-colors uppercase text-[10px] tracking-widest">Schließen
+                    [ESC]</button>
+            </div>
+            <div id="calendar-content" class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            </div>
+        </div>
+    </div>
+
+    <!-- GRAPH OVERLAY -->
+    <div id="graph-overlay"
+        class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm hidden flex flex-col items-center justify-center transition-all duration-700 opacity-0">
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <svg id="knowledge-graph" class="w-full h-full"></svg>
+        </div>
+        <div class="z-10 p-4 glass-modern rounded-2xl border-cyan-500/30 text-center animate-pulse">
+            <h2 class="text-xl font-bold tracking-[0.4em] neon-text uppercase mb-2">Neural_Knowledge_Map</h2>
+            <p class="text-[10px] text-white/40 uppercase tracking-widest">Deep context visualization active</p>
+        </div>
+        <button onclick="toggleGraph(false)"
+            class="absolute top-8 right-8 text-white/30 hover:text-red-500 transition-colors uppercase text-[10px] tracking-widest">Schließen
+            [ESC]</button>
+    </div>
+
+    <!-- GRAPH DETAIL PANEL -->
+    <div id="graph-detail-panel">
+        <div class="panel-header">
+            <span class="panel-title">Slot Details</span>
+            <button class="panel-close" onclick="closeDetailPanel()">×</button>
+        </div>
+        <div class="panel-content"></div>
+        <div class="related-slots">
+            <h4>Semantic Bridges</h4>
+            <div id="related-slots-list"></div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Modular Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/memory.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/visuals.js"></script>
+    <script src="js/auditor.js"></script>
+
+    <!-- Main Application -->
+    <script src="script.js"></script>
+</body>
+
+</html>
